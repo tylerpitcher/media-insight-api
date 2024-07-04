@@ -1,0 +1,23 @@
+version: "3.0"
+services:
+  api:
+    build:
+      context: "./api"
+    ports:
+      - "${PORT}:8000"
+    environment:
+      MODEL_NAME: ${MODEL_NAME}
+      MODEL_ENDPOINT: "http://ollama:11434"
+      JWT_AUDIENCE: ${JWT_AUDIENCE}
+      JWKS_ENDPOINT: ${JWKS_ENDPOINT}
+    depends_on:
+      - ollama
+
+  ollama:
+    build:
+      context: ./ollama
+      dockerfile: Dockerfile
+      args:
+        MODEL_NAME: ${MODEL_NAME}
+    ports:
+      - "11434:11434"
