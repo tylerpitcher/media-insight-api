@@ -8,15 +8,21 @@ services:
     environment:
       MODEL_NAME: ${MODEL_NAME}
       MODEL_ENDPOINT: "http://ollama:11434"
+      RABBIT_ENDPOINT: "amqp://rabbit:5672"
       JWT_AUDIENCE: ${JWT_AUDIENCE}
       JWKS_ENDPOINT: ${JWKS_ENDPOINT}
       AWS_REGION: ${AWS_REGION}
       AWS_KEY_ID: ${AWS_KEY_ID}
       AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
-      P_SQS_ENDPOINT: ${P_SQS_ENDPOINT}
-      C_SQS_ENDPOINT: ${C_SQS_ENDPOINT}
+      SQS_ENDPOINT: ${SQS_ENDPOINT}
     depends_on:
       - ollama
+    restart: always
+
+  rabbit:
+    image: rabbitmq
+    ports:
+      - "5672:5672"
 
   ollama:
     build:

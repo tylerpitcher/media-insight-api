@@ -1,13 +1,11 @@
-const { SendMessageCommand } = require('@aws-sdk/client-sqs');
-
-const { embedder, sqs } = require('./connections');
+const { rabbitMQConnection, embedder } = require('./connections');
 
 /**
  * @desc Handles an image upload request.
  * @param {object} req - The HTTP request object.
  * @param {object} res - The HTTP response object.
  * @returns {object} The HTTP response with appropriate status code and message.
- */
+*/
 async function handleImage(req, res) {
   // Check if the request contains a file buffer and an ID in the body
   if (!req?.file?.buffer.length || !req.body?.id) return res.status(400).json({
@@ -20,40 +18,23 @@ async function handleImage(req, res) {
       msg: 'Only jpeg & png files are supported.'
     });
 
-  // Convert the file buffer to a base64 string
-  const str = req.file.buffer.toString('base64');
-
   // Prepare the message attributes for SQS
   const attributes = {
-    filename: {
-      DataType: "String",
-      StringValue: req.file.originalname,
-    },
-    image: {
-      DataType: "String",
-      StringValue: str,
-    },
+    id: req.body.id,
+    filename: req.file.originalname,
+    image: req.file.buffer.toString('base64')
   };
 
-  // Check if the total size of the message attributes exceeds 200 KB
-  if (Buffer.byteLength(JSON.stringify(attributes)) > 200000) 
-    return res.status(413).json({
-      msg: 'Image size is too large.'
-    });
+  // Open connection to rabbit queue
+  const { rabbit, channel } = await rabbitMQConnection();
 
-  // Create a new SendMessageCommand with parameters
-  const command = new SendMessageCommand({
-    QueueUrl: process.env.P_SQS_ENDPOINT,
-    MessageGroupId: 'default',
-    MessageBody: String(req.body.id),
-    MessageAttributes: attributes,
-  });
-
-  // Send the message to the SQS queue
-  const response = await sqs.send(command);
+  // Send image to be processed and await confirmation
+  const success = channel.sendToQueue('images', Buffer.from(JSON.stringify(attributes)));
+  await channel.waitForConfirms();
+  await rabbit.close();
 
   // Return the status code from the SQS response or 500 if undefined
-  return res.sendStatus(response?.$metadata?.httpStatusCode || 500);
+  return res.sendStatus(success ? 200 : 500);
 }
 
 /**
@@ -61,7 +42,7 @@ async function handleImage(req, res) {
  * @param {object} req - The HTTP request object.
  * @param {object} res - The HTTP response object.
  * @returns {object} The HTTP response with the embedded text vector.
- */
+*/
 async function handleText(req, res) {
   // Retrieve the text from the request body
   const text = req.body?.text;
